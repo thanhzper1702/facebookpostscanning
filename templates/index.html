@@ -519,7 +519,7 @@
     <!-- ADMIN LOGIN MODAL -->
     <div id="loginModal"
         class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-4">
+        <div class="glass-panel max-w-lg w-full rounded-2xl p-6 border border-slate-700 shadow-2xl space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div class="flex items-center space-x-2">
                     <span class="material-symbols-outlined text-indigo-400 text-2xl">security</span>
@@ -530,35 +530,61 @@
                 </button>
             </div>
 
-            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-                <p>
-                    Để quét được danh sách <strong>Tất cả cảm xúc (Like/Love)</strong> và <strong>Bình luận</strong> đầy
-                    đủ nhất mà không bị giới hạn IP, công cụ sử dụng phiên đăng nhập lưu trong thư mục máy tính của bạn
-                    (<code class="bg-slate-900 px-1 py-0.5 rounded text-indigo-300">./fb_session</code>).
-                </p>
-                <div class="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-1.5">
-                    <div class="font-semibold text-indigo-300 flex items-center space-x-1">
-                        <span class="material-symbols-outlined text-sm">tips_and_updates</span>
-                        <span>Hướng dẫn thực hiện (Chỉ làm 1 lần):</span>
-                    </div>
-                    <ol class="list-decimal list-inside space-y-1 text-slate-300 pl-1">
-                        <li>Bấm nút <strong>"Mở trình duyệt đăng nhập"</strong> bên dưới.</li>
-                        <li>Cửa sổ trình duyệt Chromium sẽ tự động xuất hiện.</li>
-                        <li>Đăng nhập tài khoản Facebook của bạn (hoàn thành 2FA nếu có).</li>
-                        <li>Đóng trình duyệt lại. Session đã được lưu vĩnh viễn trên máy của bạn!</li>
-                    </ol>
+            <!-- Cloud Environment Notice -->
+            <div id="cloudEnvNotice" class="hidden p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs flex items-start space-x-2">
+                <span class="material-symbols-outlined text-base shrink-0 mt-0.5">cloud</span>
+                <span>Ứng dụng đang chạy trên Cloud (Render). Trên máy chủ đám mây không có màn hình trực tiếp, vui lòng <strong>Dán Cookie Facebook</strong> ở ô bên dưới để đăng nhập phiên quét!</span>
+            </div>
+
+            <!-- Cookie Login Section (Khuyên dùng) -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-semibold text-slate-200 flex items-center space-x-1.5">
+                        <span class="material-symbols-outlined text-amber-400 text-sm">cookie</span>
+                        <span>Cách 1: Dán Cookie Facebook (Hoạt động tốt 100% trên Render / Cloud):</span>
+                    </label>
+                </div>
+                <textarea id="cookieInput" rows="3"
+                    placeholder="Dán chuỗi cookie (chứa c_user=...; xs=...) hoặc mảng JSON từ tiện ích Cookie-Editor / J2Team vào đây..."
+                    class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 placeholder-slate-500 font-mono focus:border-indigo-500 focus:outline-none"></textarea>
+                
+                <div class="flex items-center justify-between pt-1">
+                    <span class="text-[11px] text-slate-400">Chỉ cần cookie chứa <code class="text-indigo-300">c_user</code> và <code class="text-indigo-300">xs</code></span>
+                    <button onclick="saveCookieSession()" id="saveCookieBtn"
+                        class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center space-x-1.5 shadow-md shadow-emerald-600/20 transition">
+                        <span class="material-symbols-outlined text-sm">save</span>
+                        <span>Lưu Cookie Phiên</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
-                <button onclick="closeLoginModal()"
-                    class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-                    Đóng
+            <!-- Local Browser Login Section -->
+            <div class="pt-3 border-t border-slate-800 space-y-2" id="localBrowserSection">
+                <label class="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+                    <span class="material-symbols-outlined text-indigo-400 text-sm">laptop_windows</span>
+                    <span>Cách 2: Mở trình duyệt đăng nhập (Chỉ dùng khi chạy trên máy tính cá nhân):</span>
+                </label>
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <p class="text-[11px]">Cửa sổ Chromium sẽ mở trực tiếp trên màn hình máy tính của bạn.</p>
+                    <button onclick="launchAdminBrowser()" id="launchBrowserBtn"
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1 transition shrink-0">
+                        <span class="material-symbols-outlined text-sm">open_in_new</span>
+                        <span>Mở Trình Duyệt</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer: Clear Session & Close -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                <button onclick="clearSession()" id="clearSessionBtn"
+                    class="px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center space-x-1 transition"
+                    title="Xóa phiên đăng nhập và cookie hiện tại">
+                    <span class="material-symbols-outlined text-sm">logout</span>
+                    <span>Đăng xuất / Xóa phiên</span>
                 </button>
-                <button onclick="launchAdminBrowser()" id="launchBrowserBtn"
-                    class="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 transition">
-                    <span class="material-symbols-outlined text-base">open_in_new</span>
-                    <span>Mở Trình Duyệt Đăng Nhập</span>
+                <button onclick="closeLoginModal()"
+                    class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
+                    Đóng
                 </button>
             </div>
         </div>
@@ -581,19 +607,27 @@
             checkSessionStatus();
         });
 
+        let isCloudEnvironment = false;
+
         // 1. Check Session Status
         async function checkSessionStatus() {
             try {
                 const res = await fetch('/api/session-status');
                 const data = await res.json();
-                const badge = document.getElementById('sessionStatusBadge');
                 const dot = document.getElementById('sessionDot');
                 const text = document.getElementById('sessionText');
+                isCloudEnvironment = data.is_cloud || false;
+
+                const cloudNotice = document.getElementById('cloudEnvNotice');
+                if (cloudNotice) {
+                    if (isCloudEnvironment) cloudNotice.classList.remove('hidden');
+                    else cloudNotice.classList.add('hidden');
+                }
 
                 if (data.saved) {
                     dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
                     text.innerText = 'Admin Session: Đã lưu';
-                    text.className = 'text-emerald-300';
+                    text.className = 'text-emerald-300 font-semibold';
                 } else {
                     dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
                     text.innerText = 'Chưa lưu Facebook Session';
@@ -612,23 +646,69 @@
             document.getElementById('loginModal').classList.add('hidden');
         }
 
+        async function saveCookieSession() {
+            const raw = document.getElementById('cookieInput').value.trim();
+            if (!raw) {
+                showToast("Vui lòng dán chuỗi Cookie hoặc JSON vào ô!", "warning");
+                return;
+            }
+            const btn = document.getElementById('saveCookieBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span class="material-symbols-outlined text-sm animate-spin">autorenew</span><span>Đang lưu...</span>`;
+
+            try {
+                const res = await fetch('/api/save-cookie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cookie: raw })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || "Không thể lưu cookie");
+                showToast(data.message, 'success');
+                document.getElementById('cookieInput').value = '';
+                closeLoginModal();
+                checkSessionStatus();
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span class="material-symbols-outlined text-sm">save</span><span>Lưu Cookie Phiên</span>`;
+            }
+        }
+
+        async function clearSession() {
+            if (!confirm("Bạn có chắc chắn muốn xóa phiên đăng nhập hiện tại không?")) return;
+            try {
+                const res = await fetch('/api/clear-session', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.message, 'info');
+                closeLoginModal();
+                checkSessionStatus();
+            } catch (e) {
+                showToast("Lỗi khi xóa phiên: " + e.message, 'error');
+            }
+        }
+
         async function launchAdminBrowser() {
             const btn = document.getElementById('launchBrowserBtn');
             btn.disabled = true;
-            btn.innerHTML = `<span class="material-symbols-outlined text-base animate-spin">autorenew</span><span>Đang mở trình duyệt...</span>`;
+            btn.innerHTML = `<span class="material-symbols-outlined text-base animate-spin">autorenew</span><span>Đang mở...</span>`;
 
             try {
                 const res = await fetch('/api/open-login', { method: 'POST' });
                 const data = await res.json();
-                showToast(data.message, 'info');
+                if (data.status === 'cloud_notice') {
+                    showToast(data.message, 'warning');
+                } else {
+                    showToast(data.message, 'info');
+                }
                 setTimeout(() => {
                     btn.disabled = false;
-                    btn.innerHTML = `<span class="material-symbols-outlined text-base">open_in_new</span><span>Mở Trình Duyệt Đăng Nhập</span>`;
-                    closeLoginModal();
+                    btn.innerHTML = `<span class="material-symbols-outlined text-base">open_in_new</span><span>Mở Trình Duyệt</span>`;
                     checkSessionStatus();
                 }, 3000);
             } catch (err) {
-                showToast("Lỗi khi mở trình duyệt đăng nhập: " + err.message, 'error');
+                showToast("Lỗi khi mở trình duyệt: " + err.message, 'error');
                 btn.disabled = false;
             }
         }

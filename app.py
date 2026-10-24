@@ -97,6 +97,10 @@ class ScanRequest(BaseModel):
     headless: Optional[bool] = False
 
 
+class CookieRequest(BaseModel):
+    cookie: str
+
+
 class OverrideRequest(BaseModel):
     task_id: str
     category: str  # "reactions", "comments", "shares"
@@ -263,22 +267,52 @@ async def index_page(request: Request):
 async def get_session_status():
     """Returns whether Facebook admin session cookies/state exist."""
     saved = FacebookSessionManager.is_session_saved()
+    is_cloud = sys.platform != "win32" and not os.environ.get("DISPLAY")
     return {
         "saved": saved,
+        "is_cloud": bool(is_cloud),
         "session_dir": os.path.abspath("fb_session")
+    }
+
+
+@app.post("/api/save-cookie")
+async def save_facebook_cookie(req: CookieRequest):
+    """Lưu chuỗi Cookie Facebook để đăng nhập (đặc biệt khi chạy trên Cloud / Render)."""
+    success, msg = FacebookSessionManager.save_cookies(req.cookie)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+    return {
+        "status": "success",
+        "message": msg
+    }
+
+
+@app.post("/api/clear-session")
+async def clear_admin_session():
+    """Xóa sạch session và cookie đã lưu."""
+    FacebookSessionManager.clear_session()
+    return {
+        "status": "cleared",
+        "message": "Đã xóa toàn bộ phiên đăng nhập và cookie."
     }
 
 
 @app.post("/api/open-login")
 async def open_admin_login():
     """
-    Launches visible Playwright Chromium browser inside a dedicated Proactor thread
-    so the admin can authenticate and store session cookies in fb_session.
+    Launches visible Playwright Chromium browser on local machine.
+    On cloud / headless environments, prompts the user to use Cookie input.
     """
+    is_cloud = sys.platform != "win32" and not os.environ.get("DISPLAY")
+    if is_cloud:
+        return {
+            "status": "cloud_notice",
+            "message": "Máy chủ đám mây (Render) không có giao diện màn hình trực tiếp. Vui lòng dán Cookie Facebook vào ô bên dưới để đăng nhập phiên!"
+        }
     run_in_proactor_thread(FacebookSessionManager.launch_login_browser)
     return {
         "status": "browser_launched",
-        "message": "Browser window launched. Please log in to Facebook and solve any 2FA/prompts. When finished, you may close the window or keep it open."
+        "message": "Cửa sổ trình duyệt đã mở trên máy tính của bạn. Vui lòng đăng nhập Facebook. Khi hoàn tất, hãy đóng cửa sổ lại."
     }
 
 

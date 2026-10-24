@@ -1,0 +1,28 @@
+# Chrome & Playwright session files
+fb_session/
+fb_cookies.json
+Singleton*
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.env
+
+# Temporary & test files
+scratch/
+test_*.py
+aa.html
+*.log
+*.tmp
+
+# IDE & Editor files
+.vscode/
+.idea/
+.agents/
+.gemini/

@@ -22,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 
 FB_SESSION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "fb_session"))
 os.makedirs(FB_SESSION_DIR, exist_ok=True)
+COOKIE_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "fb_cookies.json"))
 
 # ---------------------------------------------------------------------------
 # Danh sách lọc từ khóa giao diện, thời gian và nút hành động
@@ -186,23 +187,133 @@ def structure_category_users(items: List[Dict[str, Any]], is_comment: bool = Fal
 # ---------------------------------------------------------------------------
 # Quản lý phiên đăng nhập (Admin Session)
 # ---------------------------------------------------------------------------
+def parse_cookie_string(raw_cookie: str) -> List[Dict[str, Any]]:
+    """
+    Chuyển đổi chuỗi cookie dạng 'c_user=...; xs=...' hoặc mảng JSON
+    thành danh sách Cookie dict hợp lệ cho Playwright.
+    """
+    raw_cookie = (raw_cookie or "").strip()
+    if not raw_cookie:
+        return []
+
+    # Dạng JSON từ tiện ích Cookie-Editor / J2Team
+    if raw_cookie.startswith("["):
+        try:
+            items = json.loads(raw_cookie)
+            cookies = []
+            for item in items:
+                name = item.get("name")
+                value = item.get("value")
+                if not name or value is None:
+                    continue
+                domain = item.get("domain", ".facebook.com")
+                if not domain.startswith(".") and not domain.startswith("facebook.com"):
+                    domain = ".facebook.com"
+                c = {
+                    "name": str(name).strip(),
+                    "value": str(value).strip(),
+                    "domain": domain,
+                    "path": item.get("path", "/"),
+                }
+                if "sameSite" in item and item["sameSite"] in ["Strict", "Lax", "None"]:
+                    c["sameSite"] = item["sameSite"]
+                if "secure" in item:
+                    c["secure"] = bool(item["secure"])
+                cookies.append(c)
+            return cookies
+        except Exception as e:
+            logger.warning(f"Không thể parse JSON cookie: {e}")
+
+    # Dạng chuỗi name=value; name2=value2 (từ DevTools hoặc Network header)
+    cookies = []
+    pairs = raw_cookie.split(";")
+    for pair in pairs:
+        if "=" in pair:
+            k, v = pair.strip().split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            if k:
+                cookies.append({
+                    "name": k,
+                    "value": v,
+                    "domain": ".facebook.com",
+                    "path": "/"
+                })
+    return cookies
+
+
 class FacebookSessionManager:
     @staticmethod
     def is_session_saved() -> bool:
-        return os.path.exists(FB_SESSION_DIR) and len(os.listdir(FB_SESSION_DIR)) > 0
+        # 1. Kiểm tra file cookie
+        if os.path.exists(COOKIE_FILE):
+            try:
+                with open(COOKIE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, list) and len(data) > 0:
+                        return True
+            except Exception:
+                pass
+        # 2. Hoặc kiểm tra thư mục profile (phải có dữ liệu thật, không tính lock)
+        if os.path.exists(FB_SESSION_DIR):
+            files = [f for f in os.listdir(FB_SESSION_DIR) if not f.startswith("Singleton")]
+            if len(files) > 1 and ("Default" in files or "Local State" in files):
+                return True
+        return False
+
+    @staticmethod
+    def save_cookies(raw_cookie: str) -> Tuple[bool, str]:
+        cookies = parse_cookie_string(raw_cookie)
+        if not cookies:
+            return False, "Chuỗi cookie không hợp lệ hoặc rỗng."
+
+        has_c_user = any(c.get("name") == "c_user" for c in cookies)
+        has_xs = any(c.get("name") == "xs" for c in cookies)
+        if not has_c_user and not has_xs:
+            return False, "Cookie phải chứa tối thiểu 'c_user' hoặc 'xs' của tài khoản Facebook!"
+
+        try:
+            with open(COOKIE_FILE, "w", encoding="utf-8") as f:
+                json.dump(cookies, f, indent=2, ensure_ascii=False)
+            return True, f"Đã lưu thành công {len(cookies)} cookies phiên đăng nhập Facebook!"
+        except Exception as e:
+            return False, f"Lỗi lưu file cookie: {e}"
+
+    @staticmethod
+    def clear_session():
+        if os.path.exists(COOKIE_FILE):
+            try:
+                os.remove(COOKIE_FILE)
+            except Exception:
+                pass
+        if os.path.exists(FB_SESSION_DIR):
+            try:
+                import shutil
+                shutil.rmtree(FB_SESSION_DIR, ignore_errors=True)
+            except Exception:
+                pass
 
     @staticmethod
     async def launch_login_browser():
+        if sys.platform != "win32" and not os.environ.get("DISPLAY"):
+            logger.warning("Không thể mở trình duyệt GUI trên máy chủ đám mây không có DISPLAY.")
+            return
+
         from playwright.async_api import async_playwright
 
-        async with async_playwright() as p:
-            effective_headless = False
-            if sys.platform != "win32" and not os.environ.get("DISPLAY"):
-                effective_headless = True
+        # Xóa file lock cũ nếu có để tránh deadlock
+        for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+            lp = os.path.join(FB_SESSION_DIR, lock_name)
+            if os.path.exists(lp):
+                try:
+                    os.remove(lp)
+                except Exception:
+                    pass
 
+        async with async_playwright() as p:
             context = await p.chromium.launch_persistent_context(
                 user_data_dir=FB_SESSION_DIR,
-                headless=effective_headless,
+                headless=False,
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
@@ -383,6 +494,15 @@ class FacebookScraper:
         if sys.platform != "win32" and not os.environ.get("DISPLAY"):
             effective_headless = True
 
+        # Xóa các file lock cũ nếu có để tránh deadlock trên Linux/Docker
+        for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+            lp = os.path.join(self.session_dir, lock_name)
+            if os.path.exists(lp):
+                try:
+                    os.remove(lp)
+                except Exception:
+                    pass
+
         async with async_playwright() as p:
             context = await p.chromium.launch_persistent_context(
                 user_data_dir=self.session_dir,
@@ -397,6 +517,18 @@ class FacebookScraper:
                 ],
                 viewport={"width": 1280, "height": 900},
             )
+
+            # Nạp cookie đã lưu (hoạt động hoàn hảo trên Render / Cloud)
+            if os.path.exists(COOKIE_FILE):
+                try:
+                    with open(COOKIE_FILE, "r", encoding="utf-8") as f:
+                        cookies = json.load(f)
+                    if cookies and isinstance(cookies, list):
+                        await context.add_cookies(cookies)
+                        logger.info(f"Đã nạp {len(cookies)} cookies vào phiên trình duyệt Playwright.")
+                except Exception as e:
+                    logger.warning(f"Lỗi nạp cookie vào trình duyệt: {e}")
+
             page = context.pages[0] if context.pages else await context.new_page()
 
             try:
