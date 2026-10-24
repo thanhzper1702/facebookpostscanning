@@ -9,6 +9,7 @@ Facebook Contest Scoring & Anti-Spam Tool - Automation & Scraping Engine
 """
 
 import os
+import sys
 import re
 import json
 import asyncio
