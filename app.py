@@ -641,4 +641,6 @@ if __name__ == "__main__":
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
+    # Trên Windows ưu tiên 127.0.0.1 để click link terminal mở trình duyệt không bị lỗi ERR_ADDRESS_INVALID
+    host = "127.0.0.1" if sys.platform == "win32" and "PORT" not in os.environ else "0.0.0.0"
+    uvicorn.run("app:app", host=host, port=port, reload=False)

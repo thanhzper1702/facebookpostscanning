@@ -1,2 +1,3 @@
-2026/10/24-16:58:21.617 6c2c Creating DB D:\postercontest\fb_session\Default\Site Characteristics Database since it was missing.
-2026/10/24-16:58:21.636 6c2c Reusing MANIFEST D:\postercontest\fb_session\Default\Site Characteristics Database/MANIFEST-000001
+2026/10/24-17:29:06.631 85c Reusing MANIFEST D:\postercontest\fb_session\Default\Site Characteristics Database/MANIFEST-000001
+2026/10/24-17:29:06.632 85c Recovering log #3
+2026/10/24-17:29:06.632 85c Reusing old log D:\postercontest\fb_session\Default\Site Characteristics Database/000003.log 
