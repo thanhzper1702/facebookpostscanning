@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: fb-interaction-scanner
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: PYTHONUNBUFFERED
+        value: "1"
